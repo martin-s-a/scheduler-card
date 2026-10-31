@@ -36,6 +36,8 @@ export const exportSchedule = (schedule: Schedule) => {
     repeat_type: schedule.repeat_type,
     tags: schedule.tags || [],
   };
+  // only sent when known, so that a component without the option still accepts the schedule
+  if (isDefined(schedule.repeat_yearly)) output = { ...output, repeat_yearly: schedule.repeat_yearly };
   if (schedule.schedule_id) output = { ...output, schedule_id: schedule.schedule_id };
   return output;
 };

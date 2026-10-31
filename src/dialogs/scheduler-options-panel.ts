@@ -59,11 +59,14 @@ export class SchedulerOptionsPanel extends LitElement {
 
   @state() customTagValue: string = '';
 
+  willUpdate() {
+    // set before the first render, which the month and day selectors of a yearly period need
+    if (!this.startDate) this.startDate = this.schedule?.start_date || formatIsoDate(new Date());
+    if (!this.endDate) this.endDate = this.schedule?.end_date || formatIsoDate(new Date());
+  }
+
   async firstUpdated() {
     (await (window as any).loadCardHelpers()).importMoreInfoControl('input_datetime');
-
-    this.startDate = this.schedule?.start_date || formatIsoDate(new Date());
-    this.endDate = this.schedule?.end_date || formatIsoDate(new Date());
 
     const tagEntries = await fetchTags(this.hass!);
     const storedTags = tagEntries.map((e) => e.name);
@@ -154,7 +157,7 @@ export class SchedulerOptionsPanel extends LitElement {
       </div>
 
       <span class="header">${localize('ui.panel.options.period.header', this.hass)}:</span>
-      <div class="period">
+      <div class="period dates ${this.schedule.repeat_yearly ? 'yearly' : ''}">
         <div>
           <ha-checkbox ?checked=${typeof this.schedule.start_date === 'string'} @change=${this.toggleEnableDateRange}>
           </ha-checkbox>
@@ -163,27 +166,36 @@ export class SchedulerOptionsPanel extends LitElement {
           <span>${localize('ui.panel.options.period.start_date', this.hass)}</span>
         </div>
         <div class="input">
-          <ha-date-input
-            .locale=${this.hass.locale}
-            value=${this.startDate}
-            .label=${hassLocalize('ui.components.date-range-picker.start_date', this.hass)}
-            @value-changed=${this._setStartDate}
-            ?disabled=${!this.schedule.start_date}
-          >
-          </ha-date-input>
+          ${this.renderPeriodDate(
+            this.startDate,
+            hassLocalize('ui.components.date-range-picker.start_date', this.hass),
+            this._setStartDate
+          )}
         </div>
+        ${this.schedule.repeat_yearly ? html`<div></div>` : ''}
         <div>
           <span>${localize('ui.panel.options.period.end_date', this.hass)}</span>
         </div>
         <div class="input">
-          <ha-date-input
-            .locale=${this.hass.locale}
-            value=${this.endDate}
-            .label=${hassLocalize('ui.components.date-range-picker.end_date', this.hass)}
-            @value-changed=${this._setEndDate}
-            ?disabled=${!this.schedule.end_date}
+          ${this.renderPeriodDate(
+            this.endDate,
+            hassLocalize('ui.components.date-range-picker.end_date', this.hass),
+            this._setEndDate
+          )}
+        </div>
+        <div>
+          <ha-checkbox
+            ?checked=${this.schedule.repeat_yearly}
+            ?disabled=${!this.schedule.start_date}
+            @change=${(ev: Event) => this.setRepeatYearly((ev.target as HTMLInputElement).checked)}
           >
-          </ha-date-input>
+          </ha-checkbox>
+        </div>
+        <div
+          class="repeat-yearly ${this.schedule.start_date ? '' : 'disabled'}"
+          @click=${() => this.schedule.start_date && this.setRepeatYearly(!this.schedule.repeat_yearly)}
+        >
+          <span>${localize('ui.panel.options.period.repeat_yearly', this.hass)}</span>
         </div>
       </div>
 
@@ -244,6 +256,12 @@ export class SchedulerOptionsPanel extends LitElement {
         </ha-dropdown>
       </div>
 
+      ${this.schedule.repeat_yearly ? '' : this.renderRepeatType()}
+    `;
+  }
+
+  renderRepeatType() {
+    return html`
       <span class="header">${localize('ui.panel.options.repeat_type', this.hass)}:</span>
       <ha-button
         appearance="${this.schedule.repeat_type == TRepeatType.Repeat ? 'filled' : 'plain'}"
@@ -538,12 +556,114 @@ export class SchedulerOptionsPanel extends LitElement {
     this.schedule = { ...this.schedule, entries: this.schedule.entries.map(updateEntries) };
   }
 
+  renderPeriodDate(value: string, label: string, setDate: (ev: CustomEvent) => void) {
+    if (this.schedule.repeat_yearly) return this.renderMonthDayInput(value, setDate);
+    return html`
+      <ha-date-input
+        .locale=${this.hass.locale}
+        value=${value}
+        .label=${label}
+        @value-changed=${setDate}
+        ?disabled=${!this.schedule.start_date}
+      >
+      </ha-date-input>
+    `;
+  }
+
+  renderMonthDayInput(value: string, setDate: (ev: CustomEvent) => void) {
+    const [year, month, day] = value.split('-').map(Number);
+    const monthFormat = new Intl.DateTimeFormat(this.hass.locale.language, { month: 'long' });
+    // a leap year, so that February 29 can be picked
+    const daysInMonth = (m: number) => new Date(2000, m, 0).getDate();
+
+    const monthSelector = <SelectSelector>{
+      select: {
+        options: [...Array(12).keys()].map((i) => ({
+          value: String(i + 1),
+          label: capitalizeFirstLetter(monthFormat.format(new Date(2000, i, 1))),
+        })),
+      },
+    };
+    const daySelector = <SelectSelector>{
+      select: {
+        options: [...Array(daysInMonth(month)).keys()].map((i) => String(i + 1)),
+      },
+    };
+
+    const update = (m: number, d: number) => {
+      d = Math.min(d, daysInMonth(m));
+      // the year is ignored, but February 29 is only a valid date in a leap year
+      let y = year;
+      while (new Date(y, m - 1, d).getMonth() != m - 1) y++;
+      const date = `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+      setDate.call(this, new CustomEvent('value-changed', { detail: { value: date } }));
+    };
+
+    return html`
+      <div class="month-day">
+        <scheduler-combo-selector
+          class="month"
+          .hass=${this.hass}
+          .config=${monthSelector}
+          .value=${String(month)}
+          ?disabled=${!this.schedule.start_date}
+          no-clear
+          @value-changed=${(ev: CustomEvent) => ev.detail.value && update(Number(ev.detail.value), day)}
+        >
+        </scheduler-combo-selector>
+        <scheduler-combo-selector
+          class="day"
+          .hass=${this.hass}
+          .config=${daySelector}
+          .value=${String(day)}
+          ?disabled=${!this.schedule.start_date}
+          no-clear
+          @value-changed=${(ev: CustomEvent) => ev.detail.value && update(month, Number(ev.detail.value))}
+        >
+        </scheduler-combo-selector>
+      </div>
+    `;
+  }
+
+  setRepeatYearly(checked: boolean) {
+    // a yearly period never completes, so it always repeats
+    this.schedule = {
+      ...this.schedule,
+      repeat_yearly: checked,
+      repeat_type: checked ? TRepeatType.Repeat : TRepeatType.Pause,
+    };
+    if (!checked) {
+      [this.startDate, this.endDate] = this.upcomingPeriod();
+      this.schedule = { ...this.schedule, start_date: this.startDate, end_date: this.endDate };
+    }
+  }
+
+  /** the dates of the yearly period that contains today, or else of the next one */
+  upcomingPeriod(): [string, string] {
+    const now = new Date();
+    const pad = (n: number) => String(n).padStart(2, '0');
+    const today = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
+    const monthDay = (date: string) => date.slice(5);
+    const inYear = (date: string, year: number) =>
+      monthDay(date) == '02-29' && new Date(year, 1, 29).getMonth() != 1
+        ? `${year}-02-28`
+        : `${year}-${monthDay(date)}`;
+    const wraps = monthDay(this.endDate) < monthDay(this.startDate);
+    const period = (year: number): [string, string] => [
+      inYear(this.startDate, year),
+      inYear(this.endDate, wraps ? year + 1 : year),
+    ];
+
+    const year = Number(today.slice(0, 4));
+    return [period(year - 1), period(year)].find(([, end]) => end >= today) || period(year + 1);
+  }
+
   private _setStartDate(ev: CustomEvent) {
     const value = String(ev.detail.value);
     if (!value) return;
     const startDate = stringToDate(value);
     const endDate = stringToDate(this.endDate);
-    if (startDate > endDate) {
+    if (!this.schedule.repeat_yearly && startDate > endDate) {
       this.schedule = { ...this.schedule, end_date: value };
       this.endDate = value;
     }
@@ -557,7 +677,7 @@ export class SchedulerOptionsPanel extends LitElement {
     if (!value) return;
     const startDate = stringToDate(this.startDate);
     const endDate = stringToDate(value);
-    if (startDate > endDate) {
+    if (!this.schedule.repeat_yearly && startDate > endDate) {
       this.schedule = { ...this.schedule, start_date: value };
       this.startDate = value;
     }
@@ -572,6 +692,11 @@ export class SchedulerOptionsPanel extends LitElement {
       ...this.schedule!,
       start_date: checked ? this.startDate : undefined,
       end_date: checked ? this.endDate : undefined,
+      repeat_yearly: checked
+        ? this.schedule!.repeat_yearly
+        : isDefined(this.schedule!.repeat_yearly)
+          ? false
+          : undefined,
       repeat_type: checked
         ? this.schedule!.repeat_type == TRepeatType.Repeat
           ? TRepeatType.Pause
@@ -650,6 +775,36 @@ export class SchedulerOptionsPanel extends LitElement {
       ha-date-input,
       ha-input {
         width: 100%;
+      }
+      div.period.dates {
+        display: grid;
+        grid-template-columns: auto auto minmax(0, 1fr) auto minmax(0, 1fr);
+        row-gap: 5px;
+        margin-bottom: 12px;
+      }
+      div.period.dates.yearly {
+        grid-template-columns: auto auto minmax(0, 1fr);
+      }
+      div.period.dates > div.repeat-yearly {
+        grid-column: 2 / -1;
+        cursor: pointer;
+      }
+      div.period.dates > div.repeat-yearly.disabled {
+        color: var(--disabled-text-color);
+        cursor: default;
+      }
+      div.month-day {
+        display: flex;
+        width: 100%;
+        gap: 5px;
+      }
+      div.month-day .month {
+        flex: 2;
+        min-width: 0;
+      }
+      div.month-day .day {
+        flex: 1;
+        min-width: 0;
       }
       .header {
         display: flex;

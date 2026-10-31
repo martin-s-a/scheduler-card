@@ -53,6 +53,7 @@ export interface LegacySchedule {
   tags?: string[];
   start_date?: string;
   end_date?: string;
+  repeat_yearly?: boolean;
 }
 
 export interface LegacyScheduleConfig {
@@ -63,6 +64,7 @@ export interface LegacyScheduleConfig {
   tags: string[];
   start_date?: string;
   end_date?: string;
+  repeat_yearly?: boolean;
   schedule_id?: string;
 }
 

@@ -166,7 +166,8 @@
         "period": {
           "header": "Period",
           "start_date": "From",
-          "end_date": "To"
+          "end_date": "To",
+          "repeat_yearly": "Repeat every year"
         },
         "repeat_type": "behaviour after completion",
         "tags": "Tags"

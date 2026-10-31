@@ -44,6 +44,7 @@ export interface Schedule {
   timestamps: string[];
   start_date?: string;
   end_date?: string;
+  repeat_yearly?: boolean;
   repeat_type: TRepeatType;
   name?: string;
   tags?: string[];

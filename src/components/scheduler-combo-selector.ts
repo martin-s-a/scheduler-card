@@ -32,6 +32,7 @@ export class SchedulerComboSelector extends LitElement {
 
   @property() public value?: string | number | string[];
   @property({ type: Boolean }) public disabled: boolean = false;
+  @property({ type: Boolean, attribute: 'no-clear' }) public noClear: boolean = false;
 
   protected render(): TemplateResult {
     if ((this.config as SelectSelector).select) {
@@ -146,7 +147,7 @@ export class SchedulerComboSelector extends LitElement {
               compact
               @clear=${_clearValue}
               .disabled=${this.disabled}
-              .hideClearIcon=${this.disabled || !isDefined(this.value) || (Array.isArray(this.value) && !this.value.length)}
+              .hideClearIcon=${this.noClear || this.disabled || !isDefined(this.value) || (Array.isArray(this.value) && !this.value.length)}
               .value=${value}
               .icon=${selectedOption?.icon}
             >
