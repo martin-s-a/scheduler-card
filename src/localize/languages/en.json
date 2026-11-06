@@ -128,6 +128,7 @@
         "backend_error": "Could not connect with the scheduler component. It needs to be installed as integration before this card can be used.",
         "excluded_items": "{number} excluded {if number is 1} item {else} items",
         "hide_excluded": "hide excluded items",
+        "entity_disabled": "This schedule is not running because its entity {entity} is disabled",
         "additional_tasks": "{number} more {if number is 1} task {else} tasks"
       },
       "editor": {

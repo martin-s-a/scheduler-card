@@ -8,5 +8,5 @@ export const fetchItems = (hass: HomeAssistant): Promise<ScheduleStorageEntry[]>
       type: 'scheduler',
     })
     .then((res) => {
-      return (res as LegacySchedule[]).map(convertLegacySchedule);
+      return (res as LegacySchedule[]).filter((e) => e.timeslots).map(convertLegacySchedule);
     });

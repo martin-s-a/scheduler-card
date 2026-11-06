@@ -41,7 +41,7 @@ export const computeScheduleDisplay = (
         const entityDisplay = entityIds.map((e) => computeEntityDisplay(e, hass, customize)).join(', ');
         return capitalizeFirstLetter(entityDisplay);
       case DisplayItem.RelativeTime:
-        return '<relative-time></relative-time>';
+        return schedule.timestamps?.length ? '<relative-time></relative-time>' : '';
       case DisplayItem.Tags:
         return schedule.tags?.map((e) => `<tag>${e}</tag>`).join('');
       case DisplayItem.Time:

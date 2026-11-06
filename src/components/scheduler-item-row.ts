@@ -10,6 +10,7 @@ import { computeDomain } from '../lib/entity';
 
 import './scheduler-relative-time';
 import { DEFAULT_PRIMARY_INFO_DISPLAY, DEFAULT_SECONDARY_INFO_DISPLAY } from '../const';
+import { localize } from '../localize/localize';
 
 @customElement('scheduler-item-row')
 export class SchedulerItemRow extends LitElement {
@@ -21,8 +22,7 @@ export class SchedulerItemRow extends LitElement {
   render() {
     try {
       const stateObj = this.hass.states[this.schedule.entity_id!];
-      if (!stateObj) return html``;
-      const disabled = ['off', 'completed'].includes(stateObj.state);
+      const disabled = !stateObj || ['off', 'completed'].includes(stateObj.state);
       const nextAction = this.schedule.entries[0].slots[this.schedule.next_entries[0] || 0].actions[0];
 
       let icon = computeActionIcon(nextAction, this.config.customize);
@@ -50,13 +50,15 @@ export class SchedulerItemRow extends LitElement {
         </div>
         <div class="state">
           ${
-            this.config.show_toggle_switches !== false
-              ? html`<ha-switch
-                  ?checked=${['on', 'triggered'].includes(stateObj.state || '')}
-                  ?disabled=${stateObj.state == 'completed'}
-                  @change=${this._toggleEnableDisable}
-                ></ha-switch>`
-              : ''
+            !stateObj
+              ? this.renderMissingEntityWarning()
+              : this.config.show_toggle_switches !== false
+                ? html`<ha-switch
+                    ?checked=${['on', 'triggered'].includes(stateObj.state || '')}
+                    ?disabled=${stateObj.state == 'completed'}
+                    @change=${this._toggleEnableDisable}
+                  ></ha-switch>`
+                : ''
           }
         </div>
       `;
@@ -67,6 +69,16 @@ export class SchedulerItemRow extends LitElement {
         </hui-warning>
       `;
     }
+  }
+
+  private renderMissingEntityWarning() {
+    const uniqueId = `icn_${Math.random().toString(36).substring(2, 9)}`;
+    return html`
+      <ha-icon icon="mdi:alert-outline" class="warning" id="${uniqueId}"></ha-icon>
+      <ha-tooltip for="${uniqueId}">
+        ${localize('ui.panel.overview.entity_disabled', this.hass, '{entity}', this.schedule.entity_id!)}
+      </ha-tooltip>
+    `;
   }
 
   private renderDisplayItem(displayItem: string | string[]) {
@@ -164,6 +176,10 @@ export class SchedulerItemRow extends LitElement {
       }
       ha-icon.disabled {
         color: var(--disabled-text-color);
+      }
+      ha-icon.warning {
+        color: var(--warning-color);
+        cursor: default;
       }
       div.disabled {
         --primary-text-color: var(--disabled-text-color);
